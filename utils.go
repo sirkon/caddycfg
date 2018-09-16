@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 )
 
 type tokenError struct {
@@ -52,4 +54,59 @@ func refType(t reflect.Type) (reflect.Type, bool) {
 		return refType(t.Elem())
 	}
 	return t, false
+}
+
+func createStructIndex(index map[string][]int, v reflect.Value, prefix []int) error {
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+
+		if field.Type.Kind() == reflect.Struct && field.Anonymous {
+			if err := createStructIndex(index, v.Field(i), append(prefix, i)); err != nil {
+				return err
+			}
+			continue
+		} else if len(field.Name) > 0 {
+			letter := field.Name[:1]
+			if letter == strings.ToLower(letter) {
+				// avoid private fields
+				continue
+			}
+		}
+
+		name, ok := field.Tag.Lookup("json")
+		if !ok {
+			return fmt.Errorf("field '%s' from %s doesn't have 'json' tag", field.Name, v.Field(i).Type())
+		}
+		if _, ok := index[name]; ok {
+			return fmt.Errorf("field '%s' from %s has duplicate json tag value '%s'", field.Name, v.Field(i).Type(), name)
+		}
+		ppp := make([]int, len(prefix), len(prefix)+1)
+		copy(ppp, prefix)
+		index[name] = append(ppp, i)
+	}
+	return nil
+}
+
+func knownFields(index map[string][]int) []string {
+	names := make([]string, len(index))
+	i := 0
+	for name := range index {
+		names[i] = name
+		i++
+	}
+	sort.Slice(names, func(i, j int) bool {
+		indexI := index[names[i]]
+		indexJ := index[names[j]]
+		for ii, valueI := range indexI {
+			if valueI < indexJ[ii] {
+				return true
+			}
+			if valueI > indexJ[ii] {
+				return false
+			}
+		}
+		return true
+	})
+	return names
 }

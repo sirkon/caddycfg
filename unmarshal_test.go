@@ -277,11 +277,11 @@ func TestMap(t *testing.T) {
 		{
 			name: "success-string-int",
 			input: `
-root {
-   a 1
-   b 2
-   c 3
-}
+                 root {
+                    a 1
+                    b 2
+                    c 3
+                 }
 `,
 			target: &strint,
 			expected: map[string]int{
@@ -301,11 +301,11 @@ root {
 		{
 			name: "sucess-int-string",
 			input: `
-root {
-   1 a
-   2 b
-}
-`,
+                    root {
+                       1 a
+                       2 b
+                    }
+                    `,
 			target: &intstr,
 			expected: map[int]string{
 				1: "a",
@@ -324,6 +324,185 @@ root {
 			input:   "root { }",
 			target:  &forbid,
 			wantErr: true,
+		},
+		{
+			name: "error-duplicate-keys",
+			input: `
+                 root {
+                     a 1
+                     a 1
+                 }`,
+			target:  &strint,
+			wantErr: true,
+		},
+	}
+
+	for _, s := range samples {
+		t.Run(s.name, func(t *testing.T) {
+			c := caddy.NewTestController("http", s.input)
+			err := Unmarshal(c, s.target)
+			if err != nil {
+				if !s.wantErr {
+					t.Error(err)
+				}
+				return
+			}
+			if err == nil && s.wantErr {
+				t.Errorf("error expected")
+				return
+			}
+			assert.Equal(t, s.expected, reflect.ValueOf(s.target).Elem().Interface())
+		})
+	}
+}
+
+func TestStruct(t *testing.T) {
+	type (
+		sample struct {
+			name     string
+			input    string
+			target   interface{}
+			expected interface{}
+			wantErr  bool
+		}
+
+		argFriendly struct {
+			Args
+			A int `json:"a"`
+		}
+
+		argUnfriendly struct {
+			A int `json:"a"`
+		}
+
+		sub struct {
+			A int `json:"a"`
+		}
+		head struct {
+			sub
+			B struct {
+				A string `json:"a"`
+			} `json:"b"`
+		}
+		optional struct {
+			A *sub   `json:"a"`
+			B string `json:"b"`
+		}
+	)
+
+	var (
+		friendly      argFriendly
+		unfriendly    argUnfriendly
+		complexStruct head
+		option        optional
+	)
+
+	samples := []sample{
+		{
+			name: "success-no-args-friendly",
+			input: `
+                root {
+                   a 23
+                }`,
+			target: &friendly,
+			expected: argFriendly{
+				A: 23,
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-no-args-unfriendly",
+			input: `
+                root {
+                   a 1
+                }`,
+			target: &unfriendly,
+			expected: argUnfriendly{
+				A: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-args-friendly",
+			input: `
+                root a b c {
+                   a 1
+                }`,
+			target: &friendly,
+			expected: argFriendly{
+				Args: Args{
+					data: []string{"a", "b", "c"},
+				},
+				A: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "error-args-unfriendly",
+			input: `
+                root a b c {
+                   a 1
+                }`,
+			target:   &unfriendly,
+			expected: argUnfriendly{},
+			wantErr:  true,
+		},
+		{
+			name:    "error-args-friendly-no-block",
+			input:   `root a b c`,
+			target:  &friendly,
+			wantErr: true,
+		},
+		{
+			name: "success-complex-struct",
+			input: `
+                root {
+                    a 12
+                    b {
+                        a "text lol"
+                    }
+                }`,
+			target: &complexStruct,
+			expected: head{
+				sub: sub{
+					A: 12,
+				},
+				B: struct {
+					A string `json:"a"`
+				}{
+					A: "text lol",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-optional-field-absent",
+			input: `
+                root {
+                    b "1111"
+                }`,
+			target: &option,
+			expected: optional{
+				A: nil,
+				B: "1111",
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-optional-field-exist",
+			input: `
+                root {
+                    a {
+                        a 12
+                    }
+                }`,
+			target: &option,
+			expected: optional{
+				A: &sub{
+					A: 12,
+				},
+			},
+			wantErr: false,
 		},
 	}
 

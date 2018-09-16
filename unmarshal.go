@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/mholt/caddy"
 	"reflect"
+	"strings"
 )
 
 // Unmarshal unmarshaller into dest, which must not be channel
@@ -16,7 +17,7 @@ func Unmarshal(c *caddy.Controller, dest interface{}) error {
 	}
 
 	stream := newStream(c)
-	if !c.Next() {
+	if !stream.NextArg() {
 		// вначале всегда идёт название плагина.
 		return fmt.Errorf("got no config data for plugin")
 	}
@@ -31,7 +32,7 @@ func Unmarshal(c *caddy.Controller, dest interface{}) error {
 	}
 
 	if stream.Next() {
-		return locErrf(stream.Token(), "got unexpected data for plugin '%s'", unmarshaler.headToken)
+		return locErrf(stream.Token(), "got unexpected data '%s' for plugin '%s'", stream.Token(), unmarshaler.headToken)
 	}
 
 	return nil
@@ -81,7 +82,98 @@ func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
 	case reflect.Map:
 		return c.processMap(s, v)
 	case reflect.Struct:
+		return c.processStruct(s, v)
+	default:
+		return locErrf(c.headToken, "unmarshal into %s is not supported", referenceType)
 	}
+	return nil
+}
+
+func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
+	r := refValue(v)
+	if !s.NextArg() {
+		return locErrf(c.headToken, "unmarshal into %s: no data", r.Type())
+	}
+	nr := reflect.New(r.Type())
+	prevToken := s.Token()
+	if prevToken.Value != "{" {
+		if err := c.dealWithBlockArguments(s, nr); err != nil {
+			return err
+		}
+	} else {
+		s.Confirm()
+	}
+	// create structure index
+	index := map[string][]int{}
+	if err := createStructIndex(index, r, nil); err != nil {
+		return err
+	}
+
+	// scanning values
+	var closed bool
+	for s.Next() {
+		t := s.Token()
+		prevToken = t
+		s.Confirm()
+		if t.Value == "}" {
+			closed = true
+			break
+		}
+
+		key := t.Value
+		fieldIndex, isKnownField := index[key]
+		if !isKnownField {
+			names := knownFields(index)
+			for i, name := range names {
+				names[i] = fmt.Sprintf("'%s'", name)
+			}
+			switch len(names) {
+			case 0:
+				return locErrf(t, "unmarshal into %s: it has no fields to store config data, got field %s", r.Type(), key)
+			case 1:
+				return locErrf(t, "unmarshal into %s: unknown key %s, only this one is allowed - %s", r.Type(), key, names[0])
+			default:
+				return locErrf(t, "unmarshal into %s: unknown key %s, only these are allowed - %s", r.Type(), key, strings.Join(names, ", "))
+			}
+		}
+		s.Confirm()
+
+		fff := nr.Elem().FieldByIndex(fieldIndex)
+		if err := c.unmarshal(s, fff); err != nil {
+			return err
+		}
+	}
+
+	if !closed {
+		return locErrf(prevToken, "unmarshal into %s: { expected", r.Type())
+	}
+
+	r.Set(nr.Elem())
+	return nil
+}
+
+func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) error {
+	argAcc, isArgumentAccessor := v.Interface().(argumentAccess)
+	if !isArgumentAccessor {
+		return locErrf(s.Token(), "{ expected")
+	}
+	var data []string
+	var opened bool
+	prevToken := s.Token()
+	for s.NextArg() {
+		t := s.Token()
+		prevToken = t
+		s.Confirm()
+		if t.Value == "{" {
+			opened = true
+			break
+		}
+		data = append(data, t.Value)
+	}
+	if !opened {
+		return locErrf(prevToken, "unmarshal into %s: { expected", v.Type().Elem())
+	}
+	argAcc.appendData(data)
 	return nil
 }
 
@@ -119,6 +211,7 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 	dest := reflect.Zero(r.Type())
 	valueType := r.Type().Elem()
 	var closed bool
+	keysTaken := make(map[interface{}]Token)
 	for s.Next() {
 		t := s.Token()
 		prevToken = t
@@ -132,6 +225,15 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 		if err := c.unmarshal(s, key.Elem()); err != nil {
 			return err
 		}
+		if prevKeyToken, alreadyTaken := keysTaken[key.Elem().Interface()]; alreadyTaken {
+			return locErrf(t,
+				"using key %s which has already been taken at %s:%d",
+				key.Elem().Interface(),
+				prevKeyToken.File,
+				prevKeyToken.Lin,
+			)
+		}
+		keysTaken[key.Elem().Interface()] = t
 		value := reflect.New(valueType)
 		if err := c.unmarshal(s, value.Elem()); err != nil {
 			return err
