@@ -5,8 +5,8 @@ import (
 	"strconv"
 )
 
-func processInt8(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processInt8(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -23,8 +23,8 @@ func processInt8(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processInt16(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processInt16(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -41,8 +41,8 @@ func processInt16(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processInt32(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processInt32(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -59,8 +59,8 @@ func processInt32(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processInt64(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processInt64(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -77,8 +77,8 @@ func processInt64(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processInt(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processInt(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -95,8 +95,8 @@ func processInt(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processUint8(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processUint8(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -113,8 +113,8 @@ func processUint8(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processUint16(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processUint16(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -131,8 +131,8 @@ func processUint16(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processUint32(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processUint32(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -149,8 +149,8 @@ func processUint32(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processUint64(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processUint64(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -167,8 +167,8 @@ func processUint64(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processUint(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processUint(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -185,8 +185,8 @@ func processUint(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processFloat32(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processFloat32(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -203,8 +203,8 @@ func processFloat32(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processFloat64(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processFloat64(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 

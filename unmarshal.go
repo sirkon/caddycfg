@@ -15,65 +15,135 @@ func Unmarshal(c *caddy.Controller, dest interface{}) error {
 		return fmt.Errorf("unmarshal into non-pointer %T", dest)
 	}
 
+	stream := newStream(c)
 	if !c.Next() {
-		// вначале всегда идёт название плагина. Парсеру
+		// вначале всегда идёт название плагина.
 		return fmt.Errorf("got no config data for plugin")
 	}
-	pluginName := c.Val()
+	unmarshaler := &caddyCfgUnmarshaler{
+		headToken: stream.Token(),
+	}
+	stream.Confirm()
 
-	stream := newStream(c)
-
-	err := unmarshal(stream, destValue.Elem())
+	err := unmarshaler.unmarshal(stream, destValue.Elem())
 	if err != nil {
 		return err
 	}
 
 	if stream.Next() {
-		return locErrf(stream.Token(), "got unexpected data for plugin '%s'", pluginName)
+		return locErrf(stream.Token(), "got unexpected data for plugin '%s'", unmarshaler.headToken)
 	}
 
 	return nil
 }
 
-func unmarshal(s Stream, v reflect.Value) error {
+type caddyCfgUnmarshaler struct {
+	headToken Token
+}
+
+func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
 	referenceType, isJSONUnmarshaler := refType(v.Type())
 	if isJSONUnmarshaler {
-		return processJSONUnmarshaler(s, v)
+		return c.processJSONUnmarshaler(s, v)
 	}
 
 	switch referenceType.Kind() {
 	case reflect.Bool:
-		return processBoolean(s, v)
+		return c.processBoolean(s, v)
 	case reflect.Int8:
-		return processInt8(s, v)
+		return c.processInt8(s, v)
 	case reflect.Int16:
-		return processInt16(s, v)
+		return c.processInt16(s, v)
 	case reflect.Int32:
-		return processInt32(s, v)
+		return c.processInt32(s, v)
 	case reflect.Int64:
-		return processInt64(s, v)
+		return c.processInt64(s, v)
 	case reflect.Int:
-		return processInt(s, v)
+		return c.processInt(s, v)
 	case reflect.Uint8:
-		return processUint8(s, v)
+		return c.processUint8(s, v)
 	case reflect.Uint16:
-		return processUint16(s, v)
+		return c.processUint16(s, v)
 	case reflect.Uint32:
-		return processUint32(s, v)
+		return c.processUint32(s, v)
 	case reflect.Uint64:
-		return processUint64(s, v)
+		return c.processUint64(s, v)
 	case reflect.Uint:
-		return processUint(s, v)
+		return c.processUint(s, v)
 	case reflect.Float32:
-		return processFloat32(s, v)
+		return c.processFloat32(s, v)
 	case reflect.Float64:
-		return processFloat64(s, v)
+		return c.processFloat64(s, v)
 	case reflect.String:
-		return processString(s, v)
+		return c.processString(s, v)
 	case reflect.Slice:
-		return processSlice(s, v)
+		return c.processSlice(s, v)
 	case reflect.Map:
+		return c.processMap(s, v)
 	case reflect.Struct:
+	}
+	return nil
+}
+
+func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
+	keyType := v.Type().Key()
+	switch keyType.String() {
+	case
+		reflect.Bool.String(),
+		reflect.Int8.String(),
+		reflect.Int16.String(),
+		reflect.Int32.String(),
+		reflect.Int64.String(),
+		reflect.Int.String(),
+		reflect.Uint8.String(),
+		reflect.Uint16.String(),
+		reflect.Uint32.String(),
+		reflect.Uint64.String(),
+		reflect.Uint.String(),
+		reflect.String.String():
+	default:
+		rt, _ := refType(v.Type())
+		return fmt.Errorf("unmarshaling into a %s is not supported: key can only be one of integer number type, boolean and string", rt)
+	}
+
+	if !s.NextArg() {
+		return locErrf(c.headToken, "{ expected")
+	}
+	if s.Token().Value != "{" {
+		return locErrf(s.Token(), "{ was expected, got %s", s.Token())
+	}
+	prevToken := s.Token()
+	s.Confirm()
+
+	r := refValue(v)
+	dest := reflect.Zero(r.Type())
+	valueType := r.Type().Elem()
+	var closed bool
+	for s.Next() {
+		t := s.Token()
+		prevToken = t
+		if t.Value == "}" {
+			closed = true
+			s.Confirm()
+			break
+		}
+
+		key := reflect.New(keyType)
+		if err := c.unmarshal(s, key.Elem()); err != nil {
+			return err
+		}
+		value := reflect.New(valueType)
+		if err := c.unmarshal(s, value.Elem()); err != nil {
+			return err
+		}
+		if dest.IsNil() {
+			dest = reflect.MakeMap(r.Type())
+		}
+		dest.SetMapIndex(key.Elem(), value.Elem())
+	}
+	r.Set(dest)
+	if !closed {
+		return locErrf(prevToken, "} expected")
 	}
 	return nil
 }
@@ -88,10 +158,10 @@ func unmarshal(s Stream, v reflect.Value) error {
 //           aₙ
 //        }
 // 2. Slice of complex types can only be represented as b variant
-func processSlice(s Stream, v reflect.Value) error {
+func (c *caddyCfgUnmarshaler) processSlice(s Stream, v reflect.Value) error {
 	s.NextArg()
 	if s.Token().Value == "{" {
-		return processBlockedSlice(s, v)
+		return c.processBlockedSlice(s, v)
 	}
 
 	r := ref(v)
@@ -104,7 +174,7 @@ func processSlice(s Stream, v reflect.Value) error {
 		sliceElementType := l.Type().Elem()
 		sliceItem := reflect.New(sliceElementType)
 		rr := sliceItem.Elem()
-		if err := unmarshal(s, rr); err != nil {
+		if err := c.unmarshal(s, rr); err != nil {
 			return err
 		}
 		l = reflect.Append(l, rr)
@@ -114,7 +184,7 @@ func processSlice(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processBlockedSlice(s Stream, v reflect.Value) error {
+func (c *caddyCfgUnmarshaler) processBlockedSlice(s Stream, v reflect.Value) error {
 	prevToken := s.Token()
 	s.Confirm() // we reached { to be in here, so passing it
 
@@ -134,7 +204,7 @@ func processBlockedSlice(s Stream, v reflect.Value) error {
 		sliceElementType := l.Type().Elem()
 		sliceItem := reflect.New(sliceElementType)
 		rr := sliceItem.Elem()
-		if err := unmarshal(s, rr); err != nil {
+		if err := c.unmarshal(s, rr); err != nil {
 			return err
 		}
 		l = reflect.Append(l, rr)
@@ -147,8 +217,8 @@ func processBlockedSlice(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processString(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processString(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -160,8 +230,8 @@ func processString(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processBoolean(s Stream, v reflect.Value) error {
-	if err := needArgValue(s, v); err != nil {
+func (c *caddyCfgUnmarshaler) processBoolean(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -181,9 +251,9 @@ func processBoolean(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func processJSONUnmarshaler(s Stream, v reflect.Value) error {
+func (c *caddyCfgUnmarshaler) processJSONUnmarshaler(s Stream, v reflect.Value) error {
 	// получаем токен, на JSONUnmarshaler-ы у нас сильное ограничение – они должны записываться в один токен
-	if err := needArgValue(s, v); err != nil {
+	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
 
@@ -200,9 +270,9 @@ func processJSONUnmarshaler(s Stream, v reflect.Value) error {
 	return nil
 }
 
-func needArgValue(s Stream, v reflect.Value) error {
+func (c *caddyCfgUnmarshaler) needArgValue(s Stream, v reflect.Value) error {
 	if !s.NextArg() {
-		return fmt.Errorf("got no data for %s", v.Type())
+		return locErrf(c.headToken, "got no data for %s", v.Type())
 	}
 	return nil
 }

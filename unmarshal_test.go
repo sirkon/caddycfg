@@ -2,6 +2,7 @@ package caddycfg
 
 import (
 	"github.com/mholt/caddy"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
@@ -254,6 +255,93 @@ root { a
 				return
 			}
 			require.Equal(t, s.expected, reflect.ValueOf(s.target).Elem().Interface())
+		})
+	}
+}
+
+func TestMap(t *testing.T) {
+	type sample struct {
+		name     string
+		input    string
+		target   interface{}
+		expected interface{}
+		wantErr  bool
+	}
+
+	type customType string
+
+	var strint map[string]int
+	var intstr map[int]string
+	var forbid map[customType]string
+	samples := []sample{
+		{
+			name: "success-string-int",
+			input: `
+root {
+   a 1
+   b 2
+   c 3
+}
+`,
+			target: &strint,
+			expected: map[string]int{
+				"a": 1,
+				"b": 2,
+				"c": 3,
+			},
+			wantErr: false,
+		},
+		{
+			name:     "success-string-empty-no-data",
+			input:    "root { }",
+			target:   &strint,
+			expected: map[string]int(nil),
+			wantErr:  false,
+		},
+		{
+			name: "sucess-int-string",
+			input: `
+root {
+   1 a
+   2 b
+}
+`,
+			target: &intstr,
+			expected: map[int]string{
+				1: "a",
+				2: "b",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "error-unclosed-block",
+			input:   "root { a 1",
+			target:  &strint,
+			wantErr: true,
+		},
+		{
+			name:    "error-forbidden-type",
+			input:   "root { }",
+			target:  &forbid,
+			wantErr: true,
+		},
+	}
+
+	for _, s := range samples {
+		t.Run(s.name, func(t *testing.T) {
+			c := caddy.NewTestController("http", s.input)
+			err := Unmarshal(c, s.target)
+			if err != nil {
+				if !s.wantErr {
+					t.Error(err)
+				}
+				return
+			}
+			if err == nil && s.wantErr {
+				t.Errorf("error expected")
+				return
+			}
+			assert.Equal(t, s.expected, reflect.ValueOf(s.target).Elem().Interface())
 		})
 	}
 }
