@@ -52,6 +52,8 @@ func unmarshal(s Stream, v reflect.Value) error {
 		return processInt32(s, v)
 	case reflect.Int64:
 		return processInt64(s, v)
+	case reflect.Int:
+		return processInt(s, v)
 	case reflect.Uint8:
 		return processUint8(s, v)
 	case reflect.Uint16:
@@ -60,6 +62,8 @@ func unmarshal(s Stream, v reflect.Value) error {
 		return processUint32(s, v)
 	case reflect.Uint64:
 		return processUint64(s, v)
+	case reflect.Uint:
+		return processUint(s, v)
 	case reflect.Float32:
 		return processFloat32(s, v)
 	case reflect.Float64:
@@ -67,9 +71,79 @@ func unmarshal(s Stream, v reflect.Value) error {
 	case reflect.String:
 		return processString(s, v)
 	case reflect.Slice:
+		return processSlice(s, v)
 	case reflect.Map:
 	case reflect.Struct:
 	}
+	return nil
+}
+
+// There are two choices:
+// 1. Slice of primitive types (JSONUnmarshaler, boolean, numeric types, string) can be represented in two ways
+//     a) root a₁ a₂ … aₙ
+//     b) root {
+//           a₁
+//           a₂
+//           …
+//           aₙ
+//        }
+// 2. Slice of complex types can only be represented as b variant
+func processSlice(s Stream, v reflect.Value) error {
+	s.NextArg()
+	if s.Token().Value == "{" {
+		return processBlockedSlice(s, v)
+	}
+
+	r := ref(v)
+	l := reflect.Zero(r.Type())
+	for s.NextArg() {
+		if s.Token().Value == "{" {
+			rt, _ := refType(v.Type())
+			return locErrf(s.Token(), "unmarshal block with arguments into %s", rt)
+		}
+		sliceElementType := l.Type().Elem()
+		sliceItem := reflect.New(sliceElementType)
+		rr := sliceItem.Elem()
+		if err := unmarshal(s, rr); err != nil {
+			return err
+		}
+		l = reflect.Append(l, rr)
+	}
+	r.Set(l)
+
+	return nil
+}
+
+func processBlockedSlice(s Stream, v reflect.Value) error {
+	prevToken := s.Token()
+	s.Confirm() // we reached { to be in here, so passing it
+
+	r := ref(v)
+	l := reflect.Zero(r.Type())
+
+	// read until closing }
+	var closed bool
+	for s.Next() {
+		t := s.Token()
+		prevToken = t
+		if t.Value == "}" {
+			closed = true
+			s.Confirm()
+			break
+		}
+		sliceElementType := l.Type().Elem()
+		sliceItem := reflect.New(sliceElementType)
+		rr := sliceItem.Elem()
+		if err := unmarshal(s, rr); err != nil {
+			return err
+		}
+		l = reflect.Append(l, rr)
+	}
+	if !closed {
+		return locErrf(prevToken, "} expected")
+	}
+	r.Set(l)
+
 	return nil
 }
 

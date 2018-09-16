@@ -238,6 +238,64 @@ func TestInt64(t *testing.T) {
 	}
 }
 
+func TestInt(t *testing.T) {
+	type sample struct {
+		name     string
+		input    string
+		target   *int
+		expected int
+		wantErr  bool
+	}
+
+	var dest int
+
+	samples := []sample{
+		{
+			name:     "success",
+			input:    "root -1233",
+			target:   &dest,
+			expected: -1233,
+			wantErr:  false,
+		},
+		{
+			name:    "error-overflow",
+			input:   "root 12343300000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+			target:  &dest,
+			wantErr: true,
+		},
+		{
+			name:    "error-junk-data",
+			input:   "root 12 junk",
+			target:  &dest,
+			wantErr: true,
+		},
+		{
+			name:    "error-missing-data",
+			input:   "root",
+			target:  &dest,
+			wantErr: true,
+		},
+	}
+
+	for _, s := range samples {
+		t.Run(s.name, func(t *testing.T) {
+			c := caddy.NewTestController("http", s.input)
+			err := Unmarshal(c, s.target)
+			if err != nil {
+				if !s.wantErr {
+					t.Error(err)
+				}
+				return
+			}
+			if err == nil && s.wantErr {
+				t.Errorf("error expected")
+				return
+			}
+			require.Equal(t, s.expected, *s.target)
+		})
+	}
+}
+
 func TestUint8(t *testing.T) {
 	type sample struct {
 		name     string
@@ -422,6 +480,64 @@ func TestUint64(t *testing.T) {
 	}
 
 	var dest uint64
+
+	samples := []sample{
+		{
+			name:     "success",
+			input:    "root 1233333",
+			target:   &dest,
+			expected: 1233333,
+			wantErr:  false,
+		},
+		{
+			name:    "error-overflow",
+			input:   "root 12343300000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+			target:  &dest,
+			wantErr: true,
+		},
+		{
+			name:    "error-junk-data",
+			input:   "root 12 junk",
+			target:  &dest,
+			wantErr: true,
+		},
+		{
+			name:    "error-missing-data",
+			input:   "root",
+			target:  &dest,
+			wantErr: true,
+		},
+	}
+
+	for _, s := range samples {
+		t.Run(s.name, func(t *testing.T) {
+			c := caddy.NewTestController("http", s.input)
+			err := Unmarshal(c, s.target)
+			if err != nil {
+				if !s.wantErr {
+					t.Error(err)
+				}
+				return
+			}
+			if err == nil && s.wantErr {
+				t.Errorf("error expected")
+				return
+			}
+			require.Equal(t, s.expected, *s.target)
+		})
+	}
+}
+
+func TestUint(t *testing.T) {
+	type sample struct {
+		name     string
+		input    string
+		target   *uint
+		expected uint
+		wantErr  bool
+	}
+
+	var dest uint
 
 	samples := []sample{
 		{

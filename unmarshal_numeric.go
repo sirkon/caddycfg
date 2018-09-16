@@ -77,6 +77,24 @@ func processInt64(s Stream, v reflect.Value) error {
 	return nil
 }
 
+func processInt(s Stream, v reflect.Value) error {
+	if err := needArgValue(s, v); err != nil {
+		return err
+	}
+
+	t := s.Token()
+	r := ref(v)
+	value, err := strconv.Atoi(t.Value)
+	if err != nil {
+		return locErr(t, err)
+	}
+	r.Set(reflect.ValueOf(value))
+
+	s.Confirm()
+
+	return nil
+}
+
 func processUint8(s Stream, v reflect.Value) error {
 	if err := needArgValue(s, v); err != nil {
 		return err
@@ -143,6 +161,24 @@ func processUint64(s Stream, v reflect.Value) error {
 		return locErr(t, err)
 	}
 	r.Set(reflect.ValueOf(value))
+
+	s.Confirm()
+
+	return nil
+}
+
+func processUint(s Stream, v reflect.Value) error {
+	if err := needArgValue(s, v); err != nil {
+		return err
+	}
+
+	t := s.Token()
+	r := ref(v)
+	value, err := strconv.ParseUint(t.Value, 10, 64)
+	if err != nil {
+		return locErr(t, err)
+	}
+	r.Set(reflect.ValueOf(uint(value)))
 
 	s.Confirm()
 
