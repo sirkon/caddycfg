@@ -8,34 +8,42 @@ import (
 	"strings"
 )
 
-// Unmarshal unmarshaller into dest, which must not be channel
-func Unmarshal(c *caddy.Controller, dest interface{}) error {
+// UnmarshalHeadInfo returns token with plugin name and unmarshal c into dest
+func UnmarshalHeadInfo(c *caddy.Controller, dest interface{}) (Token, error) {
 	destValue := reflect.ValueOf(dest)
+	var head Token
 
 	if destValue.Type().Kind() != reflect.Ptr {
-		return fmt.Errorf("unmarshal into non-pointer %T", dest)
+		return head, fmt.Errorf("unmarshal into non-pointer %T", dest)
 	}
 
 	stream := newStream(c)
 	if !stream.NextArg() {
-		// вначале всегда идёт название плагина.
-		return fmt.Errorf("got no config data for plugin")
+		// plugin name is expected
+		return head, fmt.Errorf("got no config data for plugin")
 	}
+	head = stream.Token()
 	unmarshaler := &caddyCfgUnmarshaler{
-		headToken: stream.Token(),
+		headToken: head,
 	}
 	stream.Confirm()
 
 	err := unmarshaler.unmarshal(stream, destValue.Elem())
 	if err != nil {
-		return err
+		return head, err
 	}
 
 	if stream.Next() {
-		return locErrf(stream.Token(), "got unexpected data '%s' for plugin '%s'", stream.Token(), unmarshaler.headToken)
+		return head, locErrf(stream.Token(), "got unexpected data '%s' for plugin '%s'", stream.Token(), unmarshaler.headToken)
 	}
 
-	return nil
+	return head, nil
+}
+
+// Unmarshal unmarshaller into dest, which must not be channel
+func Unmarshal(c *caddy.Controller, dest interface{}) error {
+	_, err := UnmarshalHeadInfo(c, dest)
+	return err
 }
 
 type caddyCfgUnmarshaler struct {

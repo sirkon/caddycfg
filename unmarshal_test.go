@@ -641,7 +641,6 @@ func TestStruct(t *testing.T) {
 }
 
 func TestUnmarshalForbiddenType(t *testing.T) {
-
 	type sample struct {
 		name   string
 		target interface{}
@@ -668,4 +667,13 @@ func TestUnmarshalForbiddenType(t *testing.T) {
 			require.Error(t, Unmarshal(c, s.target))
 		})
 	}
+}
+
+func TestUnmarshalHeadInfo(t *testing.T) {
+	c := caddy.NewTestController("http", "root a")
+	var dest string
+	head, err := UnmarshalHeadInfo(c, &dest)
+	require.NoError(t, err)
+	require.Equal(t, head.Value, "root")
+	require.Equal(t, dest, "a")
 }
