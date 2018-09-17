@@ -187,7 +187,7 @@ var target []string
 
 then.
 
-Remember, `[]string` will also help at parsing this thing:
+Remember, `[]string` can also be used to unmarshal this config:
 
 
 ```
