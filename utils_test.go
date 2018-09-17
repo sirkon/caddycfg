@@ -2,11 +2,11 @@ package caddycfg
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,6 +129,43 @@ func TestCreateStructIndex(t *testing.T) {
 				t.Errorf("createStructIndex() error = %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				assert.Equal(t, tt.expected, index)
+			}
+		})
+	}
+}
+
+func TestOrderFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		index map[string][]int
+		want  []string
+	}{
+		{
+			name: "simple",
+			index: map[string][]int{
+				"a": {2},
+				"b": {1},
+				"c": {0},
+			},
+			want: []string{"c", "b", "a"},
+		},
+		{
+			name: "hard",
+			index: map[string][]int{
+				"a": {0, 0, 1},
+				"b": {0, 0, 2},
+				"c": {0, 1},
+				"e": {1, 0},
+				"f": {0, 2},
+				"g": {2},
+			},
+			want: []string{"a", "b", "c", "f", "e", "g"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := orderFields(tt.index); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("orderFields() = %v, want %v", got, tt.want)
 			}
 		})
 	}

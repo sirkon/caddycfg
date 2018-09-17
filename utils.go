@@ -88,7 +88,7 @@ func createStructIndex(index map[string][]int, v reflect.Value, prefix []int) er
 	return nil
 }
 
-func knownFields(index map[string][]int) []string {
+func orderFields(index map[string][]int) []string {
 	names := make([]string, len(index))
 	i := 0
 	for name := range index {
