@@ -185,6 +185,16 @@ Use
 var target []string
 ```
 
-then
+then.
 
+Remember, `[]string` will also help at parsing this thing:
+
+
+```
+plugin {
+    a
+    b
+    c
+}
+```
 
