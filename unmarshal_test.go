@@ -1,45 +1,68 @@
 package caddycfg
 
 import (
+	"encoding/json"
+	"reflect"
+	"testing"
+
 	"github.com/mholt/caddy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"reflect"
-	"testing"
 )
+
+type jsonUnmarshalerNeedEncoding struct {
+	a string
+}
+
+func (v *jsonUnmarshalerNeedEncoding) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &v.a); err != nil {
+		return err
+	}
+	return nil
+}
 
 func TestJSONUnmarshaler(t *testing.T) {
 	type sample struct {
 		name     string
 		input    string
-		target   **tmpType
-		expected string
+		target   interface{}
+		expected interface{}
 		wantErr  bool
 	}
 
 	var dest *tmpType
+	var dest2 *jsonUnmarshalerNeedEncoding
 
 	samples := []sample{
 		{
-			name:     "success",
-			input:    "root abcdefgh",
-			target:   &dest,
-			expected: "abcdefgh",
-			wantErr:  false,
+			name:   "success",
+			input:  "root abcdefgh",
+			target: &dest,
+			expected: tmpType{
+				a: "abcdefgh",
+			},
+			wantErr: false,
 		},
 		{
-			name:     "error-junk-data",
-			input:    "root abcdefgh junk",
-			target:   &dest,
-			expected: "",
-			wantErr:  true,
+			name:   "success-need-encoding",
+			input:  "root abcdefgh",
+			target: &dest2,
+			expected: jsonUnmarshalerNeedEncoding{
+				a: "abcdefgh",
+			},
+			wantErr: false,
 		},
 		{
-			name:     "error-missing-data",
-			input:    "root",
-			target:   &dest,
-			expected: "",
-			wantErr:  true,
+			name:    "error-junk-data",
+			input:   "root abcdefgh junk",
+			target:  &dest,
+			wantErr: true,
+		},
+		{
+			name:    "error-missing-data",
+			input:   "root",
+			target:  &dest,
+			wantErr: true,
 		},
 	}
 
@@ -57,9 +80,18 @@ func TestJSONUnmarshaler(t *testing.T) {
 				t.Errorf("error expected")
 				return
 			}
-			require.Equal(t, s.expected, (*s.target).a)
+			// reduce expected and data to values
+			require.Equal(t, reduceToValue(s.expected), reduceToValue(s.target))
 		})
 	}
+}
+
+func reduceToValue(e interface{}) interface{} {
+	v := reflect.ValueOf(e)
+	for v.Type().Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	return v.Interface()
 }
 
 func TestBoolean(t *testing.T) {
@@ -233,6 +265,12 @@ root { a
 			wantErr:  false,
 		},
 		{
+			name:    "error-args-block-mix",
+			input:   "root a b c d { e }",
+			target:  &stringSlice,
+			wantErr: true,
+		},
+		{
 			name:    "error-complex-unclosed-block",
 			input:   "root {",
 			target:  &stringSlice,
@@ -320,6 +358,18 @@ func TestMap(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "error-no-data",
+			input:   "root",
+			target:  &strint,
+			wantErr: true,
+		},
+		{
+			name:    "error-args-not-allowed",
+			input:   "root a { a 1 }",
+			target:  &strint,
+			wantErr: true,
+		},
+		{
 			name:    "error-forbidden-type",
 			input:   "root { }",
 			target:  &forbid,
@@ -388,6 +438,15 @@ func TestStruct(t *testing.T) {
 			A *sub   `json:"a"`
 			B string `json:"b"`
 		}
+		jsonCase struct {
+			A tmpType `json:"a"`
+		}
+		jsonDirectCase struct {
+			A *tmpType `json:"a"`
+		}
+		jsonEncodingCase struct {
+			A jsonUnmarshalerNeedEncoding `json:"a"`
+		}
 	)
 
 	var (
@@ -395,6 +454,9 @@ func TestStruct(t *testing.T) {
 		unfriendly    argUnfriendly
 		complexStruct head
 		option        optional
+		jcase         jsonCase
+		jdircase      jsonDirectCase
+		jenccase      jsonEncodingCase
 	)
 
 	samples := []sample{
@@ -454,6 +516,15 @@ func TestStruct(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "error-unknown-field",
+			input: `
+                root {
+                    field 1
+                }`,
+			target:  &friendly,
+			wantErr: true,
+		},
+		{
 			name: "success-complex-struct",
 			input: `
                 root {
@@ -504,6 +575,50 @@ func TestStruct(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			// this case covers a sitation when the type T itself doesn't implement JSONUnmarshaler and *T does
+			// it is expected the unmarshaler should switch to type pointer in this case
+			name: "success-json-unmarshaler-field",
+			input: `
+                root {
+                    a abcdef
+                }`,
+			target: &jcase,
+			expected: jsonCase{
+				A: tmpType{
+					a: "abcdef",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-json-unmarshaler-direct-field",
+			input: `
+                root {
+                    a abcdef
+                }`,
+			target: &jdircase,
+			expected: jsonDirectCase{
+				A: &tmpType{
+					a: "abcdef",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-json-unmarshaler-field-with-encoding",
+			input: `
+                root {
+                    a abcdef
+                }`,
+			target: &jenccase,
+			expected: jsonEncodingCase{
+				A: jsonUnmarshalerNeedEncoding{
+					a: "abcdef",
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, s := range samples {
@@ -521,6 +636,36 @@ func TestStruct(t *testing.T) {
 				return
 			}
 			assert.Equal(t, s.expected, reflect.ValueOf(s.target).Elem().Interface())
+		})
+	}
+}
+
+func TestUnmarshalForbiddenType(t *testing.T) {
+
+	type sample struct {
+		name   string
+		target interface{}
+	}
+
+	var (
+		channel = make(chan int)
+		str     string
+	)
+	samples := []sample{
+		{
+			name:   "channel",
+			target: &channel,
+		},
+		{
+			name:   "string",
+			target: str,
+		},
+	}
+
+	for _, s := range samples {
+		t.Run(s.name, func(t *testing.T) {
+			c := caddy.NewTestController("http", `root a b c`)
+			require.Error(t, Unmarshal(c, s.target))
 		})
 	}
 }

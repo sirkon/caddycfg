@@ -43,9 +43,18 @@ type caddyCfgUnmarshaler struct {
 }
 
 func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
+	// types itself can be JSONUmarshaler too
 	referenceType, isJSONUnmarshaler := refType(v.Type())
 	if isJSONUnmarshaler {
 		return c.processJSONUnmarshaler(s, v)
+	}
+
+	// point to type can be JSONUnmarshaler, check it
+	if v.CanAddr() {
+		ptr := v.Addr()
+		if _, isJSONUnmarshaler := refType(ptr.Type()); isJSONUnmarshaler {
+			return c.processPointerJSONUnmarshaler(s, ptr)
+		}
 	}
 
 	switch referenceType.Kind() {
@@ -86,7 +95,6 @@ func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
 	default:
 		return locErrf(c.headToken, "unmarshal into %s is not supported", referenceType)
 	}
-	return nil
 }
 
 func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
@@ -123,7 +131,7 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 		key := t.Value
 		fieldIndex, isKnownField := index[key]
 		if !isKnownField {
-			names := knownFields(index)
+			names := orderFields(index)
 			for i, name := range names {
 				names[i] = fmt.Sprintf("'%s'", name)
 			}
@@ -354,7 +362,6 @@ func (c *caddyCfgUnmarshaler) processBoolean(s Stream, v reflect.Value) error {
 }
 
 func (c *caddyCfgUnmarshaler) processJSONUnmarshaler(s Stream, v reflect.Value) error {
-	// получаем токен, на JSONUnmarshaler-ы у нас сильное ограничение – они должны записываться в один токен
 	if err := c.needArgValue(s, v); err != nil {
 		return err
 	}
@@ -369,6 +376,24 @@ func (c *caddyCfgUnmarshaler) processJSONUnmarshaler(s Stream, v reflect.Value) 
 
 	s.Confirm()
 
+	return nil
+}
+
+func (c *caddyCfgUnmarshaler) processPointerJSONUnmarshaler(s Stream, v reflect.Value) error {
+	if err := c.needArgValue(s, v); err != nil {
+		return err
+	}
+
+	t := s.Token()
+	v.Elem().Set(reflect.Zero(v.Elem().Type()))
+	r := v.Interface().(json.Unmarshaler)
+	if err := r.UnmarshalJSON([]byte(t.Value)); err != nil {
+		if err = r.UnmarshalJSON([]byte(fmt.Sprintf(`"%s"`, t.Value))); err != nil {
+			return locErrf(t, "cannot unmarshal: %s", err)
+		}
+	}
+
+	s.Confirm()
 	return nil
 }
 
