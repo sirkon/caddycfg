@@ -1,6 +1,6 @@
 # Reflect based config unmarshaler for Caddy server
 
-[![Build Status](https://travis-ci.org/sirkon/caddycfg.svg?branch=master)](https://travis-ci.org/sirkon/caddycfg) [![Coverage Status](https://coveralls.io/repos/github/sirkon/caddycfg/badge.svg?branch=master)](https://coveralls.io/github/sirkon/caddycfg?branch=master)
+[![Build Status](https://travis-ci.org/sirkon/caddycfg.svg?branch=master)](https://travis-ci.org/sirkon/caddycfg) [//]:[![Coverage Status](https://coveralls.io/repos/github/sirkon/caddycfg/badge.svg?branch=master)](https://coveralls.io/github/sirkon/caddycfg?branch=master)
 
 ## Installation
 
