@@ -17,11 +17,35 @@ The usage is simple, just like unmarshaling jsons with standard library tools:
 ```go
 var c *caddy.Controller
 var cfg ConfigStruct
+```
+
+One use
+```go
 if err := caddycfg.Unmarshal(c, &cfg); err != nil {
-	return err
+    return err
 }
 ```
- 
+
+Got a position of plugin name in config file
+```go
+head, err := caddycfg.UnmarshalHeadInfo(c, &cfg); err != nil {
+    return err
+}
+```
+where head is `Token`
+```go
+type Token struct {
+    File  string
+    Lin   int
+    Col   int
+    Value string
+}
+```
+
+## Config types
+
+> Please remember, this library grows from our need to reuse our existing pieces at my job, where we use JSON configs for our microservices. That's why it needs `json` tag for any field. Thats is not bad. It also supports `json.Unmarshaler` to the certain extent — value to be decoded must come in our piece, i.e. single `c.Next()` or `c.NextArg()` footprint which is to be returned by `c.Val()`
+
 
 ##### Example 1
 
@@ -88,4 +112,62 @@ type pluginConfig struct {
 }
 ```
 
-So, you see, this is practically the same as with JSONs.
+##### Example 4
+
+Internal blocks
+
+```
+plugin arg {
+    key1 subarg {
+        key value
+    }
+    key2 value
+}
+```
+
+Use
+
+```go
+type pluginConfig struct {
+    caddycfg.Args
+    
+    Key1 subConfig `json:"key1"`
+    Key2 int       `json:"key2"`
+}
+
+type subConfig struct {
+    caddycfg.Args
+    
+    Key string `json:"key"`
+}
+```
+
+##### Example 5
+
+Parse both
+
+```
+plugin {
+    a 1
+    b 2
+    c 3
+}
+```
+
+and
+
+```
+plugin {
+   someStrangeKeyName itsValue
+}
+```
+
+with one type? It is easy! Just use
+
+```go
+type pluginConfig map[string]string
+```
+
+for this.
+
+
