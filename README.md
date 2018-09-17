@@ -165,9 +165,26 @@ plugin {
 with one type? It is easy! Just use
 
 ```go
-type pluginConfig map[string]string
+var target map[string]string
 ```
 
 for this.
+
+##### Example 6
+
+Don't bother with type for simple things like
+
+```
+plugin a b c
+```
+?
+
+Use
+
+```go
+var target []string
+```
+
+then
 
 
