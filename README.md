@@ -12,7 +12,7 @@ go get github.com/sirkon/caddycfg
 
 ## Usage
 
-The usage is simple, just like unmarshaling jsons with standard library tools:
+The usage is simple, very much like unmarshaling jsons with standard library tools:
 
 ```go
 var c *caddy.Controller
