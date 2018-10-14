@@ -112,6 +112,8 @@ type pluginConfig struct {
 }
 ```
 
+`pluginConfig` has a methods `Arguments` from embedded type `caddycfg.Args` to get these positional parameters
+
 ##### Example 4
 
 Internal blocks
