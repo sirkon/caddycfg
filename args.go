@@ -31,13 +31,11 @@ func (a *Args) Arguments() []string {
 	return a.data
 }
 
-// ArgumentCollector special interface whose implementations can be used for taking arguments with additional control
-// over the content, e.g. they can keep context to provide valuable error diagnostic
-type ArgumentCollector interface {
-	// AppendArgument is taking arguments in a right order from left to right. It is user responsibility to incorporate
-	// positional information into error message. Helpers functions caddycfg.TokenError and caddycfg.TokenErrorf can do
-	// this
+// ArgumentsCollector special interface whose implementations can be used for taking arguments with additional control
+// over the content, e.g. they can keep context to provide valuable error diagnostic.
+// Function AppendArgument will be used to consume positional parameters in a right order and Arguments is to be used
+// to get consumed arguments
+type ArgumentsCollector interface {
 	AppendArgument(arg Token) error
-	// Arguments is considered to return collected arguments
 	Arguments() []string
 }

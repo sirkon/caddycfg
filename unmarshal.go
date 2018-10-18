@@ -170,7 +170,7 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 
 func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) error {
 	switch argAcc := v.Interface().(type) {
-	case ArgumentCollector:
+	case ArgumentsCollector:
 		var opened bool
 		prevToken := s.Token()
 		for s.NextArg() {

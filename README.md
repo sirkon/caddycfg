@@ -116,7 +116,18 @@ type pluginConfig struct {
 
 There is also alternative approach, which needs a bit more work yet provides better control over content: 
 
-interface `caddycfg.Arguments` can be implemented - its methods gets and returns poisitional parameters. 
+there's an interface 
+
+```go
+type ArgumentsCollector interface {
+    AppendArgument(arg Token) error
+    Arguments() []string	
+}
+```
+
+if a structure implements it then its (of the structure) methods will be used to deal with positional parameters:
+method `AppendArgument` will be called to consume positional arguments one by one in a right order and `Arguments`
+are supposed to return collected data.  
 
 ##### Example 4
 
