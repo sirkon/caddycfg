@@ -1,6 +1,6 @@
 # Reflect based config unmarshaler for Caddy server
 
-[![Build Status](https://travis-ci.org/sirkon/caddycfg.svg?branch=master)](https://travis-ci.org/sirkon/caddycfg) [![Coverage Status](https://coveralls.io/repos/github/sirkon/caddycfg/badge.svg?branch=master)](https://coveralls.io/github/sirkon/caddycfg?branch=master)
+[![Build Status](https://travis-ci.org/sirkon/caddycfg.svg?branch=master)](https://travis-ci.org/sirkon/caddycfg) [![Coverage Status](https://coveralls.io/repos/github/sirkon/caddycfg/badge.svg?branch=master)](https://coveralls.io/github/sirkon/caddycfg?branch=master) [![GoDoc](https://godoc.org/github.com/sirkon/caddycfg?status.svg)](https://godoc.org/github.com/sirkoni/caddycfdg)
 
 ## Installation
 
@@ -112,7 +112,11 @@ type pluginConfig struct {
 }
 ```
 
-`pluginConfig` has a methods `Arguments` from embedded type `caddycfg.Args` to get these positional parameters
+`pluginConfig` has a method `Arguments` from embedded type `caddycfg.Args` to get these positional parameters
+
+There is also alternative approach, which needs a bit more work yet provides better control over content: 
+
+interface `caddycfg.Arguments` can be implemented - its methods gets and returns poisitional parameters. 
 
 ##### Example 4
 

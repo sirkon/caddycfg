@@ -406,6 +406,19 @@ func TestMap(t *testing.T) {
 	}
 }
 
+type argumentsImpl struct {
+	data []string
+}
+
+func (a *argumentsImpl) AppendArgument(arg Token) error {
+	a.data = append(a.data, arg.Value)
+	return nil
+}
+
+func (a *argumentsImpl) Arguments() []string {
+	return a.data
+}
+
 func TestStruct(t *testing.T) {
 	type (
 		sample struct {
@@ -418,6 +431,10 @@ func TestStruct(t *testing.T) {
 
 		argFriendly struct {
 			Args
+			A int `json:"a"`
+		}
+		customArgFriendly struct {
+			argumentsImpl
 			A int `json:"a"`
 		}
 
@@ -450,13 +467,14 @@ func TestStruct(t *testing.T) {
 	)
 
 	var (
-		friendly      argFriendly
-		unfriendly    argUnfriendly
-		complexStruct head
-		option        optional
-		jcase         jsonCase
-		jdircase      jsonDirectCase
-		jenccase      jsonEncodingCase
+		friendly       argFriendly
+		customFriendly customArgFriendly
+		unfriendly     argUnfriendly
+		complexStruct  head
+		option         optional
+		jcase          jsonCase
+		jdircase       jsonDirectCase
+		jenccase       jsonEncodingCase
 	)
 
 	samples := []sample{
@@ -468,6 +486,17 @@ func TestStruct(t *testing.T) {
                 }`,
 			target: &friendly,
 			expected: argFriendly{
+				A: 23,
+			},
+			wantErr: false,
+		},
+		{
+			name: "success-custom-no-args-friendly",
+			input: ` root {
+                         a 23
+                     }`,
+			target: &customFriendly,
+			expected: customArgFriendly{
 				A: 23,
 			},
 			wantErr: false,
@@ -500,6 +529,21 @@ func TestStruct(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success-custom-args-friendly",
+			input: `
+                root a b c {
+                   a 777
+                }`,
+			target: &customFriendly,
+			expected: customArgFriendly{
+				argumentsImpl: argumentsImpl{
+					data: []string{"a", "b", "c"},
+				},
+				A: 777,
+			},
+			wantErr: false,
+		},
+		{
 			name: "error-args-unfriendly",
 			input: `
                 root a b c {
@@ -513,6 +557,12 @@ func TestStruct(t *testing.T) {
 			name:    "error-args-friendly-no-block",
 			input:   `root a b c`,
 			target:  &friendly,
+			wantErr: true,
+		},
+		{
+			name:    "error-args-custom-friendly-no-block",
+			input:   `root a b c`,
+			target:  &customFriendly,
 			wantErr: true,
 		},
 		{

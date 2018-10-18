@@ -34,7 +34,7 @@ func UnmarshalHeadInfo(c *caddy.Controller, dest interface{}) (Token, error) {
 	}
 
 	if stream.Next() {
-		return head, locErrf(stream.Token(), "got unexpected data '%s' for plugin '%s'", stream.Token(), unmarshaler.headToken)
+		return head, TokenErrorf(stream.Token(), "got unexpected data '%s' for plugin '%s'", stream.Token(), unmarshaler.headToken)
 	}
 
 	return head, nil
@@ -101,14 +101,14 @@ func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
 	case reflect.Struct:
 		return c.processStruct(s, v)
 	default:
-		return locErrf(c.headToken, "unmarshal into %s is not supported", referenceType)
+		return TokenErrorf(c.headToken, "unmarshal into %s is not supported", referenceType)
 	}
 }
 
 func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 	r := refValue(v)
 	if !s.NextArg() {
-		return locErrf(c.headToken, "unmarshal into %s: no data", r.Type())
+		return TokenErrorf(c.headToken, "unmarshal into %s: no data", r.Type())
 	}
 	nr := reflect.New(r.Type())
 	prevToken := s.Token()
@@ -145,11 +145,11 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 			}
 			switch len(names) {
 			case 0:
-				return locErrf(t, "unmarshal into %s: it has no fields to store config data, got field %s", r.Type(), key)
+				return TokenErrorf(t, "unmarshal into %s: it has no fields to store config data, got field %s", r.Type(), key)
 			case 1:
-				return locErrf(t, "unmarshal into %s: unknown key %s, only this one is allowed - %s", r.Type(), key, names[0])
+				return TokenErrorf(t, "unmarshal into %s: unknown key %s, only this one is allowed - %s", r.Type(), key, names[0])
 			default:
-				return locErrf(t, "unmarshal into %s: unknown key %s, only these are allowed - %s", r.Type(), key, strings.Join(names, ", "))
+				return TokenErrorf(t, "unmarshal into %s: unknown key %s, only these are allowed - %s", r.Type(), key, strings.Join(names, ", "))
 			}
 		}
 		s.Confirm()
@@ -161,7 +161,7 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 	}
 
 	if !closed {
-		return locErrf(prevToken, "unmarshal into %s: { expected", r.Type())
+		return TokenErrorf(prevToken, "unmarshal into %s: { expected", r.Type())
 	}
 
 	r.Set(nr.Elem())
@@ -169,28 +169,46 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 }
 
 func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) error {
-	argAcc, isArgumentAccessor := v.Interface().(argumentAccess)
-	if !isArgumentAccessor {
-		return locErrf(s.Token(), "{ expected")
-	}
-	var data []string
-	var opened bool
-	prevToken := s.Token()
-	for s.NextArg() {
-		t := s.Token()
-		prevToken = t
-		s.Confirm()
-		if t.Value == "{" {
-			opened = true
-			break
+	switch argAcc := v.Interface().(type) {
+	case ArgumentCollector:
+		var opened bool
+		prevToken := s.Token()
+		for s.NextArg() {
+			t := s.Token()
+			prevToken = t
+			s.Confirm()
+			if t.Value == "{" {
+				opened = true
+				break
+			}
+			argAcc.AppendArgument(t)
 		}
-		data = append(data, t.Value)
+		if !opened {
+			return TokenErrorf(prevToken, "unmarshal into %s: { expected", v.Type().Elem())
+		}
+		return nil
+	case argumentAccess:
+		var data []string
+		var opened bool
+		prevToken := s.Token()
+		for s.NextArg() {
+			t := s.Token()
+			prevToken = t
+			s.Confirm()
+			if t.Value == "{" {
+				opened = true
+				break
+			}
+			data = append(data, t.Value)
+		}
+		if !opened {
+			return TokenErrorf(prevToken, "unmarshal into %s: { expected", v.Type().Elem())
+		}
+		argAcc.appendData(data)
+		return nil
+	default:
+		return TokenErrorf(s.Token(), "{ expected")
 	}
-	if !opened {
-		return locErrf(prevToken, "unmarshal into %s: { expected", v.Type().Elem())
-	}
-	argAcc.appendData(data)
-	return nil
 }
 
 func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
@@ -215,10 +233,10 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 	}
 
 	if !s.NextArg() {
-		return locErrf(c.headToken, "{ expected")
+		return TokenErrorf(c.headToken, "{ expected")
 	}
 	if s.Token().Value != "{" {
-		return locErrf(s.Token(), "{ was expected, got %s", s.Token())
+		return TokenErrorf(s.Token(), "{ was expected, got %s", s.Token())
 	}
 	prevToken := s.Token()
 	s.Confirm()
@@ -242,7 +260,7 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 			return err
 		}
 		if prevKeyToken, alreadyTaken := keysTaken[key.Elem().Interface()]; alreadyTaken {
-			return locErrf(t,
+			return TokenErrorf(t,
 				"using key %s which has already been taken at %s:%d",
 				key.Elem().Interface(),
 				prevKeyToken.File,
@@ -261,7 +279,7 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 	}
 	r.Set(dest)
 	if !closed {
-		return locErrf(prevToken, "} expected")
+		return TokenErrorf(prevToken, "} expected")
 	}
 	return nil
 }
@@ -287,7 +305,7 @@ func (c *caddyCfgUnmarshaler) processSlice(s Stream, v reflect.Value) error {
 	for s.NextArg() {
 		if s.Token().Value == "{" {
 			rt, _ := refType(v.Type())
-			return locErrf(s.Token(), "unmarshal block with arguments into %s", rt)
+			return TokenErrorf(s.Token(), "unmarshal block with arguments into %s", rt)
 		}
 		sliceElementType := l.Type().Elem()
 		sliceItem := reflect.New(sliceElementType)
@@ -328,7 +346,7 @@ func (c *caddyCfgUnmarshaler) processBlockedSlice(s Stream, v reflect.Value) err
 		l = reflect.Append(l, rr)
 	}
 	if !closed {
-		return locErrf(prevToken, "} expected")
+		return TokenErrorf(prevToken, "} expected")
 	}
 	r.Set(l)
 
@@ -361,7 +379,7 @@ func (c *caddyCfgUnmarshaler) processBoolean(s Stream, v reflect.Value) error {
 	case "false":
 		r.Set(reflect.ValueOf(false))
 	default:
-		return locErrf(t, "true or false expected, got %s", t)
+		return TokenErrorf(t, "true or false expected, got %s", t)
 	}
 
 	s.Confirm()
@@ -378,7 +396,7 @@ func (c *caddyCfgUnmarshaler) processJSONUnmarshaler(s Stream, v reflect.Value) 
 	r := ref(v).Interface().(json.Unmarshaler)
 	if err := r.UnmarshalJSON([]byte(t.Value)); err != nil {
 		if err = r.UnmarshalJSON([]byte(fmt.Sprintf(`"%s"`, t.Value))); err != nil {
-			return locErrf(t, "cannot unmarshal: %s", err)
+			return TokenErrorf(t, "cannot unmarshal: %s", err)
 		}
 	}
 
@@ -397,7 +415,7 @@ func (c *caddyCfgUnmarshaler) processPointerJSONUnmarshaler(s Stream, v reflect.
 	r := v.Interface().(json.Unmarshaler)
 	if err := r.UnmarshalJSON([]byte(t.Value)); err != nil {
 		if err = r.UnmarshalJSON([]byte(fmt.Sprintf(`"%s"`, t.Value))); err != nil {
-			return locErrf(t, "cannot unmarshal: %s", err)
+			return TokenErrorf(t, "cannot unmarshal: %s", err)
 		}
 	}
 
@@ -407,7 +425,7 @@ func (c *caddyCfgUnmarshaler) processPointerJSONUnmarshaler(s Stream, v reflect.
 
 func (c *caddyCfgUnmarshaler) needArgValue(s Stream, v reflect.Value) error {
 	if !s.NextArg() {
-		return locErrf(c.headToken, "got no data for %s", v.Type())
+		return TokenErrorf(c.headToken, "got no data for %s", v.Type())
 	}
 	return nil
 }

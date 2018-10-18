@@ -49,7 +49,7 @@ func TestLocerrf(t *testing.T) {
 		Lin:   1,
 		Col:   1,
 	}
-	err := locErrf(tok, "error happened: %s", errors.New("error"))
+	err := TokenErrorf(tok, "error happened: %s", errors.New("error"))
 	require.Equal(t, "caddyfile:1: error happened: error", err.Error())
 }
 

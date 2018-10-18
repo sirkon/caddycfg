@@ -18,16 +18,18 @@ func (te tokenError) Error() string {
 	return fmt.Sprintf("%s:%d: %s", te.File, te.Lin, te.err)
 }
 
-func locErr(t Token, err error) error {
+// TokenError diagnose a error caused with a given token
+func TokenError(t Token, err error) error {
 	return tokenError{
 		Token: t,
 		err:   err,
 	}
 }
 
-func locErrf(t Token, format string, a ...interface{}) error {
+// TokenErrorf diagnose a error caused with a given token with custom error message
+func TokenErrorf(t Token, format string, a ...interface{}) error {
 	err := fmt.Errorf(format, a...)
-	return locErr(t, err)
+	return TokenError(t, err)
 }
 
 func ref(v reflect.Value) reflect.Value {
