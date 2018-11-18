@@ -127,7 +127,8 @@ type ArgumentsCollector interface {
 
 if a structure implements it then its (of the structure) methods will be used to deal with positional parameters:
 method `AppendArgument` will be called to consume positional arguments one by one in a right order and `Arguments`
-are supposed to return collected data.  
+are supposed to return collected data. 
+Note though, block is not mandatory for types implementing `ArgumentsCollector`
 
 ##### Example 4
 
@@ -215,3 +216,14 @@ plugin {
 }
 ```
 
+## Structure validation
+
+Data check may be needed at times. If destination type implements 
+
+```go
+type Validator interface {
+	Err(head caddycfg.Token) error
+}
+```
+
+function `Err(headToken)` will be called after unmarshaling 

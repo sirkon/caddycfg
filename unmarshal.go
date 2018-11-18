@@ -28,7 +28,7 @@ func UnmarshalHeadInfo(c *caddy.Controller, dest interface{}) (Token, error) {
 	}
 	stream.Confirm()
 
-	err := unmarshaler.unmarshal(stream, destValue.Elem())
+	err := unmarshaler.unmarshal(head, stream, destValue.Elem())
 	if err != nil {
 		return head, err
 	}
@@ -50,14 +50,15 @@ type caddyCfgUnmarshaler struct {
 	headToken Token
 }
 
-func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) (err error) {
+func (c *caddyCfgUnmarshaler) unmarshal(head Token, s Stream, v reflect.Value) (err error) {
 	// If input v implements Validator
 	defer func() {
 		if err != nil {
 			return
 		}
+		s.NextArg()
 		if validator, ok := v.Interface().(Validator); ok {
-			if nerr := validator.Err(); nerr != nil {
+			if nerr := validator.Err(head); nerr != nil {
 				err = nerr
 			}
 		}
@@ -176,7 +177,7 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 		s.Confirm()
 
 		fff := nr.Elem().FieldByIndex(fieldIndex)
-		if err := c.unmarshal(s, fff); err != nil {
+		if err := c.unmarshal(prevToken, s, fff); err != nil {
 			return err
 		}
 	}
@@ -300,7 +301,7 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 		}
 
 		key := reflect.New(keyType)
-		if err := c.unmarshal(s, key.Elem()); err != nil {
+		if err := c.unmarshal(prevToken, s, key.Elem()); err != nil {
 			return err
 		}
 		if prevKeyToken, alreadyTaken := keysTaken[key.Elem().Interface()]; alreadyTaken {
@@ -313,7 +314,7 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 		}
 		keysTaken[key.Elem().Interface()] = t
 		value := reflect.New(valueType)
-		if err := c.unmarshal(s, value.Elem()); err != nil {
+		if err := c.unmarshal(prevToken, s, value.Elem()); err != nil {
 			return err
 		}
 		if dest.IsNil() {
@@ -340,7 +341,8 @@ func (c *caddyCfgUnmarshaler) processMap(s Stream, v reflect.Value) error {
 // 2. Slice of complex types can only be represented as b variant
 func (c *caddyCfgUnmarshaler) processSlice(s Stream, v reflect.Value) error {
 	s.NextArg()
-	if s.Token().Value == "{" {
+	token := s.Token()
+	if token.Value == "{" {
 		return c.processBlockedSlice(s, v)
 	}
 
@@ -354,7 +356,7 @@ func (c *caddyCfgUnmarshaler) processSlice(s Stream, v reflect.Value) error {
 		sliceElementType := l.Type().Elem()
 		sliceItem := reflect.New(sliceElementType)
 		rr := sliceItem.Elem()
-		if err := c.unmarshal(s, rr); err != nil {
+		if err := c.unmarshal(token, s, rr); err != nil {
 			return err
 		}
 		l = reflect.Append(l, rr)
@@ -384,7 +386,7 @@ func (c *caddyCfgUnmarshaler) processBlockedSlice(s Stream, v reflect.Value) err
 		sliceElementType := l.Type().Elem()
 		sliceItem := reflect.New(sliceElementType)
 		rr := sliceItem.Elem()
-		if err := c.unmarshal(s, rr); err != nil {
+		if err := c.unmarshal(prevToken, s, rr); err != nil {
 			return err
 		}
 		l = reflect.Append(l, rr)

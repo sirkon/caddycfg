@@ -739,10 +739,8 @@ type argAcc struct {
 	data []string
 }
 
-const dummyErrorMsg = "error!"
-
-func (argAcc) Err() error {
-	return fmt.Errorf(dummyErrorMsg)
+func (argAcc) Err(head Token) error {
+	return fmt.Errorf(head.Value)
 }
 
 func (argAcc) AppendArgument(arg Token) error {
@@ -757,5 +755,5 @@ func TestValidation(t *testing.T) {
 	dest := argAcc{}
 	c := caddy.NewTestController("http", "root a b c")
 	err := Unmarshal(c, &dest)
-	require.Equal(t, err.Error(), dummyErrorMsg)
+	require.Equal(t, err.Error(), "root")
 }
