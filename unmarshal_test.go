@@ -2,6 +2,7 @@ package caddycfg
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -467,14 +468,15 @@ func TestStruct(t *testing.T) {
 	)
 
 	var (
-		friendly       argFriendly
-		customFriendly customArgFriendly
-		unfriendly     argUnfriendly
-		complexStruct  head
-		option         optional
-		jcase          jsonCase
-		jdircase       jsonDirectCase
-		jenccase       jsonEncodingCase
+		friendly        argFriendly
+		customFriendly  customArgFriendly
+		nCustomFriendly customArgFriendly
+		unfriendly      argUnfriendly
+		complexStruct   head
+		option          optional
+		jcase           jsonCase
+		jdircase        jsonDirectCase
+		jenccase        jsonEncodingCase
 	)
 
 	samples := []sample{
@@ -560,10 +562,15 @@ func TestStruct(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "error-args-custom-friendly-no-block",
-			input:   `root a b c`,
-			target:  &customFriendly,
-			wantErr: true,
+			name:   "args-custom-friendly-no-block",
+			input:  `root a b c`,
+			target: &nCustomFriendly,
+			expected: customArgFriendly{
+				argumentsImpl: argumentsImpl{
+					data: []string{"a", "b", "c"},
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name: "error-unknown-field",
@@ -726,4 +733,29 @@ func TestUnmarshalHeadInfo(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, head.Value, "root")
 	require.Equal(t, dest, "a")
+}
+
+type argAcc struct {
+	data []string
+}
+
+const dummyErrorMsg = "error!"
+
+func (argAcc) Err() error {
+	return fmt.Errorf(dummyErrorMsg)
+}
+
+func (argAcc) AppendArgument(arg Token) error {
+	return nil
+}
+
+func (argAcc) Arguments() []string {
+	return nil
+}
+
+func TestValidation(t *testing.T) {
+	dest := argAcc{}
+	c := caddy.NewTestController("http", "root a b c")
+	err := Unmarshal(c, &dest)
+	require.Equal(t, err.Error(), dummyErrorMsg)
 }

@@ -50,9 +50,22 @@ type caddyCfgUnmarshaler struct {
 	headToken Token
 }
 
-func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
+func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) (err error) {
+	// If input v implements Validator
+	defer func() {
+		if err != nil {
+			return
+		}
+		if validator, ok := v.Interface().(Validator); ok {
+			if nerr := validator.Err(); nerr != nil {
+				err = nerr
+			}
+		}
+	}()
+
 	// types itself can be JSONUmarshaler too
 	referenceType, isJSONUnmarshaler := refType(v.Type())
+
 	if isJSONUnmarshaler {
 		return c.processJSONUnmarshaler(s, v)
 	}
@@ -63,6 +76,10 @@ func (c *caddyCfgUnmarshaler) unmarshal(s Stream, v reflect.Value) error {
 		if _, isJSONUnmarshaler := refType(ptr.Type()); isJSONUnmarshaler {
 			return c.processPointerJSONUnmarshaler(s, ptr)
 		}
+	}
+
+	if _, ok := v.Interface().(ArgumentsCollector); ok && referenceType.Kind() != reflect.Struct {
+		return c.processBlockArguments(s, v)
 	}
 
 	switch referenceType.Kind() {
@@ -114,6 +131,10 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 	prevToken := s.Token()
 	if prevToken.Value != "{" {
 		if err := c.dealWithBlockArguments(s, nr); err != nil {
+			if _, ok := err.(noBlock); ok {
+				r.Set(nr.Elem())
+				return nil
+			}
 			return err
 		}
 	} else {
@@ -168,14 +189,37 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 	return nil
 }
 
+func (c *caddyCfgUnmarshaler) processBlockArguments(s Stream, v reflect.Value) error {
+	r := refValue(v)
+	if !s.NextArg() {
+		return TokenErrorf(c.headToken, "unmarshal into %s: no data", r.Type())
+	}
+	nr := reflect.New(r.Type())
+	args := v.Interface().(ArgumentsCollector)
+	for s.NextArg() {
+		t := s.Token()
+		s.Confirm()
+		if t.Value == "{" {
+			return TokenErrorf(t, "unmarshal into %s: unexpected {", v.Type().Elem())
+		}
+		args.AppendArgument(t)
+	}
+	r.Set(nr)
+	return nil
+}
+
+type noBlock struct{}
+
+func (noBlock) Error() string {
+	return "no-block-here"
+}
+
 func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) error {
 	switch argAcc := v.Interface().(type) {
 	case ArgumentsCollector:
 		var opened bool
-		prevToken := s.Token()
 		for s.NextArg() {
 			t := s.Token()
-			prevToken = t
 			s.Confirm()
 			if t.Value == "{" {
 				opened = true
@@ -184,7 +228,7 @@ func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) 
 			argAcc.AppendArgument(t)
 		}
 		if !opened {
-			return TokenErrorf(prevToken, "unmarshal into %s: { expected", v.Type().Elem())
+			return noBlock{}
 		}
 		return nil
 	case argumentAccess:
