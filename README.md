@@ -1,6 +1,6 @@
 # Reflect based config unmarshaler for Caddy server
 
-# It is already a part of upcoming Caddy 2: https://github.com/mholt/caddy/issues/2295
+It is already a part of upcoming Caddy 2: https://github.com/mholt/caddy/issues/2295
 
 [![Build Status](https://travis-ci.org/sirkon/caddycfg.svg?branch=master)](https://travis-ci.org/sirkon/caddycfg) [![codecov](https://codecov.io/gh/sirkon/caddycfg/branch/master/graph/badge.svg)](https://codecov.io/gh/sirkon/caddycfg) [![GoDoc](https://godoc.org/github.com/sirkon/caddycfg?status.svg)](https://godoc.org/github.com/sirkon/caddycfg) 
 
