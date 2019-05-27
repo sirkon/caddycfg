@@ -6,8 +6,6 @@ It is already a part of upcoming Caddy 2: https://github.com/mholt/caddy/issues/
 
 ## Installation
 
-I hope it will be included into Caddy installation, but it is not for now. So use
-
 ```bash
 go get github.com/sirkon/caddycfg
 ``` 
@@ -131,6 +129,19 @@ if a structure implements it then its (of the structure) methods will be used to
 method `AppendArgument` will be called to consume positional arguments one by one in a right order and `Arguments`
 are supposed to return collected data. 
 Note though, block is not mandatory for types implementing `ArgumentsCollector`
+
+###### Update
+
+Type `ArgumentsConsumer` is prefered over `ArgumentsCollector` since version v0.1.0: unlike `ArgumentsCollector` it 
+takes all positional arguments at once, thus having control on exact number of arguments – `ArgumentsCollector` is only
+able to limit amount of arguments to get from above
+
+```go
+type ArgumentsConsumer interface {
+    ConsumeArguments(head Token, args []Token) error
+    Arguments() []string
+}
+```  
 
 ##### Example 4
 

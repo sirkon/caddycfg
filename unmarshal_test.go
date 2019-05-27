@@ -2,6 +2,7 @@ package caddycfg
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -756,4 +757,136 @@ func TestValidation(t *testing.T) {
 	c := caddy.NewTestController("http", "root a b c")
 	err := Unmarshal(c, &dest)
 	require.Equal(t, err.Error(), "root")
+}
+
+var _ ArgumentsCollector = (*argCollector)(nil)
+
+type argCollector []string
+
+func (a *argCollector) AppendArgument(arg Token) error {
+	if len(*a) >= 3 {
+		return errors.New("error")
+	}
+	*a = append(*a, arg.Value)
+	return nil
+}
+
+func (a *argCollector) Arguments() []string {
+	return []string(*a)
+}
+
+func TestArgCollector(t *testing.T) {
+	var ac argCollector
+
+	c := caddy.NewTestController("http", "root")
+	err := Unmarshal(c, &ac)
+	require.Error(t, err)
+
+	c = caddy.NewTestController("http", "root a")
+	if err := Unmarshal(c, &ac); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, argCollector{"a"}, ac)
+
+	c = caddy.NewTestController("http", "root a {\n}")
+	err = Unmarshal(c, &ac)
+	require.Error(t, err)
+
+	c = caddy.NewTestController("http", "root a b")
+	if err := Unmarshal(c, &ac); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, argCollector{"a", "b"}, ac)
+
+	c = caddy.NewTestController("http", "root a b c")
+	if err := Unmarshal(c, &ac); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, argCollector{"a", "b", "c"}, ac)
+
+	c = caddy.NewTestController("http", "root a b c d")
+	err = Unmarshal(c, &ac)
+	require.Error(t, err)
+}
+
+var _ ArgumentsConsumer = (*argConsumer)(nil)
+
+type argConsumer []string
+
+func (a *argConsumer) ConsumeArguments(head Token, args []Token) error {
+	switch len(args) {
+	case 0:
+		return TokenErrorf(head, "two positional arguments expected, got nothing")
+	case 1:
+		return TokenErrorf(args[0], "two positional arguments expected, got only one")
+	case 2:
+		*a = append(*a, args[0].Value, args[1].Value)
+		return nil
+	default:
+		return TokenErrorf(args[2], "unexpected positional argument, can only consume 2 arguments")
+	}
+}
+
+func (a *argConsumer) Arguments() []string {
+	return []string(*a)
+}
+
+func TestArgumentsConsumer(t *testing.T) {
+	var ac argConsumer
+	c := caddy.NewTestController("http", "root a b")
+	if err := Unmarshal(c, &ac); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, argConsumer{"a", "b"}, ac)
+
+	c = caddy.NewTestController("http", "root")
+	err := Unmarshal(c, &ac)
+	require.Error(t, err)
+
+	c = caddy.NewTestController("http", "root a")
+	err = Unmarshal(c, &ac)
+	require.Error(t, err)
+
+	c = caddy.NewTestController("http", "root a b c")
+	err = Unmarshal(c, &ac)
+	require.Error(t, err)
+
+	c = caddy.NewTestController("http", "root a b {\n}")
+	err = Unmarshal(c, &ac)
+	require.Error(t, err)
+}
+
+var _ ArgumentsConsumer = &betweenType{}
+
+type betweenType struct {
+	open  string
+	close string
+}
+
+func (b *betweenType) ConsumeArguments(head Token, args []Token) error {
+	if len(args) != 2 {
+		return TokenErrorf(head, "two positional arguments required, got only %d", len(args))
+	}
+	b.open = args[0].Value
+	b.close = args[1].Value
+	return nil
+}
+
+func (b *betweenType) Arguments() []string {
+	return []string{b.open, b.close}
+}
+
+func TestRegression(t *testing.T) {
+	var b betweenType
+	c := caddy.NewTestController("http", "root a b")
+	if err := Unmarshal(c, &b); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, betweenType{open: "a", close: "b"}, b)
+
+	c = caddy.NewTestController("http", "root a b {\n}")
+	if err := Unmarshal(c, &b); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, betweenType{open: "a", close: "b"}, b)
 }

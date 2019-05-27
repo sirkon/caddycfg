@@ -3,9 +3,10 @@ package caddycfg
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mholt/caddy"
 	"reflect"
 	"strings"
+
+	"github.com/mholt/caddy"
 )
 
 // UnmarshalHeadInfo returns token with plugin name and unmarshal c into dest
@@ -79,8 +80,11 @@ func (c *caddyCfgUnmarshaler) unmarshal(head Token, s Stream, v reflect.Value) (
 		}
 	}
 
-	if _, ok := v.Interface().(ArgumentsCollector); ok && referenceType.Kind() != reflect.Struct {
-		return c.processBlockArguments(s, v)
+	if _, ok := v.Addr().Interface().(ArgumentsCollector); ok && referenceType.Kind() != reflect.Struct {
+		return c.processBlockArguments(s, v.Addr())
+	}
+	if _, ok := v.Addr().Interface().(ArgumentsConsumer); ok && referenceType.Kind() != reflect.Struct {
+		return c.consumeBlockArguments(s, v.Addr())
 	}
 
 	switch referenceType.Kind() {
@@ -131,7 +135,7 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 	nr := reflect.New(r.Type())
 	prevToken := s.Token()
 	if prevToken.Value != "{" {
-		if err := c.dealWithBlockArguments(s, nr); err != nil {
+		if err := c.dealWithBlockArguments(c.headToken, s, nr); err != nil {
 			if _, ok := err.(noBlock); ok {
 				r.Set(nr.Elem())
 				return nil
@@ -191,21 +195,46 @@ func (c *caddyCfgUnmarshaler) processStruct(s Stream, v reflect.Value) error {
 }
 
 func (c *caddyCfgUnmarshaler) processBlockArguments(s Stream, v reflect.Value) error {
-	r := refValue(v)
+	r := refValue(v.Elem())
 	if !s.NextArg() {
 		return TokenErrorf(c.headToken, "unmarshal into %s: no data", r.Type())
 	}
 	nr := reflect.New(r.Type())
-	args := v.Interface().(ArgumentsCollector)
+	args := nr.Interface().(ArgumentsCollector)
 	for s.NextArg() {
 		t := s.Token()
 		s.Confirm()
 		if t.Value == "{" {
 			return TokenErrorf(t, "unmarshal into %s: unexpected {", v.Type().Elem())
 		}
-		args.AppendArgument(t)
+		if err := args.AppendArgument(t); err != nil {
+			return err
+		}
 	}
-	r.Set(nr)
+	v.Elem().Set(nr.Elem())
+	return nil
+}
+
+func (c *caddyCfgUnmarshaler) consumeBlockArguments(s Stream, v reflect.Value) error {
+	r := refValue(v.Elem())
+	if !s.NextArg() {
+		return TokenErrorf(c.headToken, "unmarshal into %s: no data", r.Type())
+	}
+	nr := reflect.New(r.Type())
+	args := nr.Interface().(ArgumentsConsumer)
+	var tokens []Token
+	for s.NextArg() {
+		t := s.Token()
+		s.Confirm()
+		if t.Value == "{" {
+			return TokenErrorf(t, "unmarshal into %s: unexpected {", v.Type().Elem())
+		}
+		tokens = append(tokens, t)
+	}
+	if err := args.ConsumeArguments(c.headToken, tokens); err != nil {
+		return err
+	}
+	v.Elem().Set(nr.Elem())
 	return nil
 }
 
@@ -215,7 +244,7 @@ func (noBlock) Error() string {
 	return "no-block-here"
 }
 
-func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) error {
+func (c *caddyCfgUnmarshaler) dealWithBlockArguments(head Token, s Stream, v reflect.Value) error {
 	switch argAcc := v.Interface().(type) {
 	case ArgumentsCollector:
 		var opened bool
@@ -226,7 +255,29 @@ func (c *caddyCfgUnmarshaler) dealWithBlockArguments(s Stream, v reflect.Value) 
 				opened = true
 				break
 			}
-			argAcc.AppendArgument(t)
+			if err := argAcc.AppendArgument(t); err != nil {
+				return err
+			}
+		}
+		if !opened {
+			return noBlock{}
+		}
+		return nil
+	case ArgumentsConsumer:
+		var opened bool
+		var tokens []Token
+		for s.NextArg() {
+			t := s.Token()
+			s.Confirm()
+			if t.Value == "{" {
+				opened = true
+				break
+			}
+			tokens = append(tokens, t)
+		}
+		err := argAcc.ConsumeArguments(head, tokens)
+		if err != nil {
+			return err
 		}
 		if !opened {
 			return noBlock{}

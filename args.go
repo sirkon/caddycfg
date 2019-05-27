@@ -31,11 +31,18 @@ func (a *Args) Arguments() []string {
 	return a.data
 }
 
-// ArgumentsCollector special interface whose implementations can be used for taking arguments with additional control
+// deprecated ArgumentsCollector special interface whose implementations can be used for taking arguments with additional control
 // over the content, e.g. they can keep context to provide valuable error diagnostic.
 // Function AppendArgument will be used to consume positional parameters in a right order and Arguments is to be used
 // to get consumed arguments
 type ArgumentsCollector interface {
 	AppendArgument(arg Token) error
+	Arguments() []string
+}
+
+// ArgumentsConsumer special interface whose implementations allows fine grain control over positional arguments
+// Function ConsumeArguments will be used to consume all positional arguments at once
+type ArgumentsConsumer interface {
+	ConsumeArguments(head Token, args []Token) error
 	Arguments() []string
 }
