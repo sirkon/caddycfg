@@ -119,29 +119,16 @@ There is also alternative approach, which needs a bit more work yet provides bet
 there's an interface 
 
 ```go
-type ArgumentsCollector interface {
-    AppendArgument(arg Token) error
-    Arguments() []string	
-}
-```
-
-if a structure implements it then its (of the structure) methods will be used to deal with positional parameters:
-method `AppendArgument` will be called to consume positional arguments one by one in a right order and `Arguments`
-are supposed to return collected data. 
-Note though, block is not mandatory for types implementing `ArgumentsCollector`
-
-###### Update
-
-Type `ArgumentsConsumer` is prefered over `ArgumentsCollector` since version v0.1.0: unlike `ArgumentsCollector` it 
-takes all positional arguments at once, thus having control on exact number of arguments – `ArgumentsCollector` is only
-able to limit amount of arguments to get from above
-
-```go
 type ArgumentsConsumer interface {
     ConsumeArguments(head Token, args []Token) error
     Arguments() []string
 }
-```  
+```
+
+if a structure implements it then its (of the structure) methods will be used to deal with positional parameters:
+method `ConsumeArguments` will be called to consume positional arguments at once. Note though, block is not mandatory 
+for types implementing `ArgumentsConsumer`
+
 
 ##### Example 4
 
