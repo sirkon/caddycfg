@@ -21,7 +21,7 @@ func UnmarshalHeadInfo(c *caddy.Controller, dest interface{}) (Token, error) {
 	stream := newStream(c)
 	if !stream.NextArg() {
 		// plugin name is expected
-		return head, fmt.Errorf("got no config data for plugin")
+		return head, fmt.Errorf("got no config data for plugin " + head.Value)
 	}
 	head = stream.Token()
 	unmarshaler := &caddyCfgUnmarshaler{
