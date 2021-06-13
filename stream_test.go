@@ -1,7 +1,7 @@
 package caddycfg
 
 import (
-	"github.com/mholt/caddy"
+	"github.com/caddyserver/caddy"
 	"github.com/stretchr/testify/require"
 	"testing"
 )

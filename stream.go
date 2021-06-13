@@ -1,7 +1,7 @@
 package caddycfg
 
 import (
-	"github.com/mholt/caddy"
+	"github.com/caddyserver/caddy"
 )
 
 // Stream stream of tokens with so called confirmation. It works in the following way:

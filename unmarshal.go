@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/mholt/caddy"
+	"github.com/caddyserver/caddy"
 )
 
 // UnmarshalHeadInfo returns token with plugin name and unmarshal c into dest
@@ -21,7 +21,7 @@ func UnmarshalHeadInfo(c *caddy.Controller, dest interface{}) (Token, error) {
 	stream := newStream(c)
 	if !stream.NextArg() {
 		// plugin name is expected
-		return head, fmt.Errorf("got no config data for plugin at line %d" , c.Line())
+		return head, fmt.Errorf("got no config data for plugin at line %d", c.Line())
 	}
 	head = stream.Token()
 	unmarshaler := &caddyCfgUnmarshaler{
