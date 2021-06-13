@@ -3,7 +3,7 @@ module github.com/sirkon/caddycfg
 go 1.14
 
 require (
-	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
-	github.com/google/uuid v1.0.0 // indirect
-	github.com/mholt/caddy v0.11.0
+	github.com/caddyserver/caddy v1.0.5
+	github.com/pkg/errors v0.9.1
+	github.com/stretchr/testify v1.7.0
 )
